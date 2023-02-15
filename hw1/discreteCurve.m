@@ -11,12 +11,10 @@ y = sin(b*t);
 u = zeros(1,n-2);
 v = zeros(1,n-2);
 xy = [x; y];
-diff = xy(:,2:end)-xy(:,1:end-1);
 
-xy_shift_down = circshift(xy, 1, 2);
-shift_norms = sqrt(sum(power(xy - xy_shift_down, 2),1));
-scaled_shifts = times(xy - xy_shift_down, 1./shift_norms);
-grad = scaled_shifts(:, 2:end-1) - scaled_shifts(:, 3:end);
+
+
+grad = lg(xy);
 u = grad(1, :);
 v = grad(2, :);
 
@@ -28,6 +26,8 @@ axis equal;
 %% Problem 2(d)
 %%% YOUR CODE TO COMPUTE KAPPA HERE %%%
 %%% END HOMEWORK PROBLEM %%%
+
+
 
 kappa = sqrt(sum(power(grad, 2), 1))
 
@@ -44,7 +44,8 @@ colorbar;
 t0 = 0;
 t1 = pi*1.25;
 nSamples = 100;
-nSteps = 20;
+nSteps = 5000;
+h = 0.05
 
 % We provide a few examples of curves to try
 %curveFunction = @(t) [(cos(t)-cos(3*t).^3); (sin(t)-sin(3*t).^3)]';
@@ -57,10 +58,18 @@ f = figure;
 plt = plot(curve(:,1),curve(:,2),'k','linewidth',2);
 axis equal;
 for i=1:nSteps
-    %%% YOUR CODE HERE TO PERFORM GRADIENT DESCENT %%%
-    %%% END HOMEWORK PROBLEM %%%
+    grad = transpose(lg(transpose(curve)))
+    curve(2:end-1, :) = curve(2:end-1, :) - h * grad
     plt.XData = curve(:,1);
     plt.YData = curve(:,2);
     drawnow;
 end
 
+%% 
+
+function length_grad = lg(xy)
+    xy_shift_down = circshift(xy, 1, 2);
+    shift_norms = sqrt(sum(power(xy - xy_shift_down, 2),1));
+    scaled_shifts = times(xy - xy_shift_down, 1./shift_norms);
+    length_grad = scaled_shifts(:, 2:end-1) - scaled_shifts(:, 3:end);
+end
