@@ -35,8 +35,9 @@ quiver3(curveData.midpointsR(1, :), curveData.midpointsR(2, :), curveData.midpoi
 view(3); axis image vis3d manual off;
 ax = gca;
 ax.Clipping = 'off';
-
-for i = 1:10000
+nsteps = 400;
+totalenergies = zeros(nsteps);
+for i = 1:nsteps
     bendForce = computeBendForce(curveData);
     twistForce = computeTwistForce(curveData);
     totalForce = bendModulus * bendForce + twistModulus * twistForce;
@@ -50,7 +51,9 @@ for i = 1:10000
     newCurveData = updateTwist(newCurveData, curveData);
     newCurveData = updateMaterialFrame(newCurveData);
     curveData = newCurveData;
-    
+    [tote, bende, twiste, ke] = computeEnergy(curveData);
+    totalenergies(i) = tote;
+    j
     if mod(i - 1, 40) == 0
         pause(0.001);
         cla;
@@ -59,7 +62,12 @@ for i = 1:10000
                 curveData.u(1, 1:end-1), curveData.u(2, 1:end-1), curveData.u(3, 1:end-1),...
                 'color','red','linewidth',1);
     end
+
 end
+figure
+plot(totalenergies)
+xlabel("Itereations")
+ylabel("Total Energy")
 
 function curveData = prepare(curveData)
     % Basic closed curve
@@ -89,7 +97,24 @@ end
 
 function bishopFrame = propagateBishopFrame(curveData, startFrame)
     %%% PROBLEM 3(a) - YOUR CODE HERE TO PARALLEL TRANSPORT AROUND THE CURVE
+    n = cross(curveData.tangentsL, curveData.tangentsR, 1);
+    n = n./sqrt(sum(power(n, 2),1));
+    
+    
+
+
     parallelTransport = zeros(3, 3, nSamples);
+    
+
+    for k=1:nSamples
+        theta = acos(dot(curveData.tangentsL(:, k), curveData.tangentsR(:, k))/(sqrt(sum(power(curveData.tangentsL(:, k), 2),1)) * sqrt(sum(power(curveData.tangentsR(:, k), 2),1))));
+        R = [cos(theta) + n(1, k)^2 * (1 - cos(theta)), n(2, k) * n(1, k) * (1 - cos(theta)) - n(3, k) * sin(theta), n(1, k) * n(3, k) * (1 - cos(theta)) + n(2, k) * sin(theta);
+            n(1, k)*n(2, k) * (1 - cos(theta)) + n(3, k) * sin(theta), cos(theta) + n(2, k)^2 * (1 - cos(theta)), n(2, k) * n(3, k) * (1 - cos(theta)) - n(1, k) * sin(theta);
+            n(1, k)*n(3, k) * (1 - cos(theta))- n(2, k) * sin(theta), n(2, k) * n(3, k) * (1 - cos(theta)) + n(1, k) * sin(theta), cos(theta) + n(3, k)^2 * (1 - cos(theta))];
+        parallelTransport(:, :, k) = R;
+    end
+
+    
     %%% END HOMEWORK PROBLEM
     
     bishopFrame = zeros(3, 2, nSamples + 1);
@@ -123,13 +148,32 @@ end
 
 %%% PROBLEM 3(c) Part I - YOUR CODE HERE
 function bendForce = computeBendForce(curveData)
+    
     bendForce = zeros(size(curveData.verts));
+    for k=2:nSamples-1
+        ai = 1/(curveData.edgeLengthsL(k) * curveData.edgeLengthsR(k) + dot(curveData.edgesL(:, k), curveData.edgesR(:, k)));
+        force = -ai/(curveData.dualLengths(k)) * (-2 * (cross(curveData.edgesR(:, k), curveData.curvatureBinormals(:, k)) + cross(curveData.edgesL(:, k), curveData.curvatureBinormals(:, k))) + curveData.curvatureSquared(k) * (curveData.edgesR(:, k) - curveData.edgesL(:, k)));
+        aim = 1/(curveData.edgeLengthsL(k-1) * curveData.edgeLengthsR(k-1) + dot(curveData.edgesL(:, k-1), curveData.edgesR(:, k-1)));
+        force = force + (aim/(curveData.dualLengths(k-1)) * (-2 * cross(curveData.edgesL(:, k-1), curveData.curvatureBinormals(:, k-1)) - curveData.edgesL(:, k-1) * curveData.curvatureSquared(k-1)));
+        aip = 1/(curveData.edgeLengthsL(k+1) * curveData.edgeLengthsR(k+1) + dot(curveData.edgesL(:, k+1), curveData.edgesR(:, k+1)));
+        force = force + (aip/(curveData.dualLengths(k+1)) * (-2 * cross(curveData.edgesR(:, k+1), curveData.curvatureBinormals(:, k+1)) + curveData.edgesR(:, k+1) * curveData.curvatureSquared(k+1)));
+        bendForce(:, k) = -1 * bendModulus * force;
+    end
+    
 end
 %%% END HOMEWORK PROBLEM
 
 %%% PROBLEM 3(c) Part II - YOUR CODE HERE
 function twistForce = computeTwistForce(curveData)
     twistForce = zeros(size(curveData.verts));
+    L = sum(curveData.dualLengths)/2;
+    cumTwist = curveData.totalTwist * cumsum([0 circshift(curveData.dualLengths, -1)]) ./ curveData.totalLength;
+    for k=2:nSamples-1
+        hgm = curveData.curvatureBinormals(:, k)/(2 * curveData.edgeLengthsL(k));
+        hgp = -1 * curveData.curvatureBinormals(:, k)/(2 * curveData.edgeLengthsR(k));
+        hg = -(hgm + hgp);
+        twistForce(:, k) = (cumTwist(k) - cumTwist(1)) * hg * (twistModulus/L);
+    end
 end
 %%% END HOMEWORK PROBLEM
 
